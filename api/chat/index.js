@@ -1,4 +1,5 @@
 const chatApi = require('./chat-api');
+const cors = require('cors')({origin: true});
 
 /**
  * Send a message.
@@ -237,15 +238,12 @@ exports.createGroup = (req, res) => {
     if (req.method !== 'POST') {
       res.status(403).send('Forbidden!');
     }
-      
+    
       cors(req, res, () => {
-
         if (!req.body.group_name) {
             res.status(405).send('group_name is not present!');
         }
-        // if (!req.body.group_members) {
-        //     res.status(405).send('group_members is not present!');
-        // }
+      
         if (!req.params.app_id) {
             res.status(405).send('app_id is not present!');
         }
@@ -289,7 +287,6 @@ exports.createGroup = (req, res) => {
               console.log('result', result);
               res.status(201).send({"success":true});
             });
-      
         }               
       });
 }
@@ -318,7 +315,6 @@ exports.updateGroup = (req, res) => {
 
       let group_id = req.params.group_id;
       let app_id = req.params.app_id;
-
 
       let group_name = req.body.group_name;
       let group_owner = req.body.group_owner;

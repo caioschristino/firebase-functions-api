@@ -1,10 +1,11 @@
 const express = require('express');
+const app = express()
+
 const { sendMessage, updateMyContact, receiveEmail, 
     deletePhoto, createContact, getContact, typing, 
     setAttributesGroup,setMembersGroup, leaveGroup, joinGroup,
     updateGroup,  createGroup, deleteConversation, deleteMessage, verifytoken} = require('../../api/chat');
 const verifyAuth = require('../middlewares/verifyAuth');
-
 const route = express.Router();
 
 route.post('/:app_id/messages', verifyAuth, sendMessage);

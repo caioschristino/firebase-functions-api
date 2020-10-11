@@ -17,7 +17,7 @@ exports.validatePasswordSignupData = (email, password, confirmPassword) => {
 
   // Password verifications
   if (!password || password === '') errors.password = 'auth/empty-password';
-  else if (!passRegex.test(password)) errors.password = 'auth/invalid-password';
+  // else if (!passRegex.test(password)) errors.password = 'auth/invalid-password';
 
   // Password match verifications
   if (!confirmPassword || confirmPassword === '')

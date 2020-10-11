@@ -1,50 +1,50 @@
 const admin = require('firebase-admin');
 const gcs = require('@google-cloud/storage');
 
-const removeEmpty = (obj) => 
-  Object.entries(obj).forEach(([key, val]) => {
-    if (val && typeof val === 'object') removeEmpty(val)
-    else if (val == null) delete obj[key]
-});
+const removeEmpty = (obj) =>
+    Object.entries(obj).forEach(([key, val]) => {
+        if (val && typeof val === 'object') removeEmpty(val)
+        else if (val == null) delete obj[key]
+    });
 
 class ChatApi {
     sendDirectMessage(sender_id, sender_fullname, recipient_id, recipient_fullname, text, app_id, attributes, timestamp, type, metadata) {
-            var path = '/apps/'+app_id+'/users/'+sender_id+'/messages/'+recipient_id;
-            
-            var message = {};
+        var path = '/apps/' + app_id + '/users/' + sender_id + '/messages/' + recipient_id;
 
-            if (attributes)
-                message.attributes = attributes;  //at first position because the following basic data will overwrite potencial inconsistence attributes
+        var message = {};
 
-            // message.status = CHAT_MESSAGE_STATUS.SENDING;                                        
-            message.sender = sender_id;
-            message.sender_fullname = sender_fullname;
-            message.recipient = recipient_id;
-            message.recipient_fullname = recipient_fullname;
-            
-            message.timestamp = admin.database.ServerValue.TIMESTAMP;
-            if (timestamp) {
-                message.timestamp = timestamp;
-            }
+        if (attributes)
+            message.attributes = attributes;  //at first position because the following basic data will overwrite potencial inconsistence attributes
 
-            message.channel_type = "direct";
-            message.text = text;
+        // message.status = CHAT_MESSAGE_STATUS.SENDING;                                        
+        message.sender = sender_id;
+        message.sender_fullname = sender_fullname;
+        message.recipient = recipient_id;
+        message.recipient_fullname = recipient_fullname;
 
-
-            if (type) {
-                message.type = type;
-            }else {
-                message.type = "text";
-            }
-
-        
-            if (metadata) {
-                message.metadata = metadata;
-            }
-
-            console.log("sendDirectMessage with message " + JSON.stringify(message)  + " to " + path);
-            return admin.database().ref(path).push(message);
+        message.timestamp = admin.database.ServerValue.TIMESTAMP;
+        if (timestamp) {
+            message.timestamp = timestamp;
         }
+
+        message.channel_type = "direct";
+        message.text = text;
+
+
+        if (type) {
+            message.type = type;
+        } else {
+            message.type = "text";
+        }
+
+
+        if (metadata) {
+            message.metadata = metadata;
+        }
+
+        console.log("sendDirectMessage with message " + JSON.stringify(message) + " to " + path);
+        return admin.database().ref(path).push(message);
+    }
 
 
 
@@ -52,7 +52,7 @@ class ChatApi {
 
     sendGroupMessage(sender_id, sender_fullname, recipient_group_id, recipient_group_fullname, text, app_id, attributes, projectid, timestamp, type, metadata) {
 
-        var path = '/apps/'+app_id+'/users/'+sender_id+'/messages/'+recipient_group_id;
+        var path = '/apps/' + app_id + '/users/' + sender_id + '/messages/' + recipient_group_id;
         // console.log("path", path);
 
 
@@ -60,7 +60,7 @@ class ChatApi {
 
         if (attributes)
             message.attributes = attributes;  //at first position because the following basic data will overwrite potencial inconsistence attributes
-            
+
         // message.status = CHAT_MESSAGE_STATUS.SENDING;                                        
         message.sender = sender_id;
         message.sender_fullname = sender_fullname;
@@ -74,11 +74,11 @@ class ChatApi {
 
         message.channel_type = "group";
         message.text = text;
-      
-        
+
+
         if (type) {
             message.type = type;
-        }else {
+        } else {
             message.type = "text";
         }
 
@@ -91,67 +91,58 @@ class ChatApi {
         }
 
 
-        console.log("sendGroupMessage with  message " + JSON.stringify(message)  + " to " + path);
+        console.log("sendGroupMessage with  message " + JSON.stringify(message) + " to " + path);
         return admin.database().ref(path).push(message);   //send message to group timeline
-
-
-        // var newMessageRef = admin.database().ref(path).push(message);   //send message to group timeline
-
-        // var message_id = newMessageRef.key;
-
-        // return sendGroupMessageToMembersTimeline(sender_id, recipient_group_id, message, message_id, app_id);
-
-
     }
 
     copyGroupMessagesToUserTimeline(group_id, user_id, app_id) {
 
-      
-        const fromPath = '/apps/'+app_id+'/messages/' + group_id;
-       //  console.log("fromPath", fromPath);
-   
-       return admin.database().ref(fromPath).orderByChild("timestamp").once('value').then(function(messagesSnap) {
-        // console.log('messagesSnap ' + JSON.stringify(messagesSnap) );
-       
-            //called multiple time for each message
-            if (messagesSnap.val()!=null){
-                    var messagesWithMessageIdAsObject = messagesSnap.val();
-                    console.log('messagesWithMessageIdAsObject ' + JSON.stringify(messagesWithMessageIdAsObject) );
-                
-                    var messagesIdasArray = Object.keys(messagesWithMessageIdAsObject);
-                    console.log('messagesIdasArray ' + JSON.stringify(messagesIdasArray) );
-                    
-                    //disable notification
-                    // if (message.attributes) {
-                    // message.attributes.sendnotification = false;
-                    // }
-                
-                    // disable notification
-                    var i = 0;
-                    messagesIdasArray.forEach(function(messageId) {
-                
-                        const message = messagesWithMessageIdAsObject[messageId];
-                        // console.log('messageWithOutMessageId ' + JSON.stringify(messageWithOutMessageId));
-                    
-                    
-                        // if (i>0) {
-                        if (!message.attributes) {
-                            message.attributes = {};
-                        }
 
-                        if (message.attributes.forcenotification != true) {
-                            message.attributes.sendnotification = false;
-                        }
-                        // } 
-                        console.log('message ' + JSON.stringify(message));
-                        i++;
-                    });
-                    
-                    const toPath = '/apps/'+app_id+'/users/' + user_id+'/messages/'+group_id;
-                    // console.log("toPath", toPath);
-                
-                    console.log('duplicating message ' + JSON.stringify(messagesWithMessageIdAsObject) + " from : " + fromPath + " to " + toPath);
-                    return admin.database().ref(toPath).update(messagesWithMessageIdAsObject);
+        const fromPath = '/apps/' + app_id + '/messages/' + group_id;
+        //  console.log("fromPath", fromPath);
+
+        return admin.database().ref(fromPath).orderByChild("timestamp").once('value').then(function (messagesSnap) {
+            // console.log('messagesSnap ' + JSON.stringify(messagesSnap) );
+
+            //called multiple time for each message
+            if (messagesSnap.val() != null) {
+                var messagesWithMessageIdAsObject = messagesSnap.val();
+                console.log('messagesWithMessageIdAsObject ' + JSON.stringify(messagesWithMessageIdAsObject));
+
+                var messagesIdasArray = Object.keys(messagesWithMessageIdAsObject);
+                console.log('messagesIdasArray ' + JSON.stringify(messagesIdasArray));
+
+                //disable notification
+                // if (message.attributes) {
+                // message.attributes.sendnotification = false;
+                // }
+
+                // disable notification
+                var i = 0;
+                messagesIdasArray.forEach(function (messageId) {
+
+                    const message = messagesWithMessageIdAsObject[messageId];
+                    // console.log('messageWithOutMessageId ' + JSON.stringify(messageWithOutMessageId));
+
+
+                    // if (i>0) {
+                    if (!message.attributes) {
+                        message.attributes = {};
+                    }
+
+                    if (message.attributes.forcenotification != true) {
+                        message.attributes.sendnotification = false;
+                    }
+                    // } 
+                    console.log('message ' + JSON.stringify(message));
+                    i++;
+                });
+
+                const toPath = '/apps/' + app_id + '/users/' + user_id + '/messages/' + group_id;
+                // console.log("toPath", toPath);
+
+                console.log('duplicating message ' + JSON.stringify(messagesWithMessageIdAsObject) + " from : " + fromPath + " to " + toPath);
+                return admin.database().ref(toPath).update(messagesWithMessageIdAsObject);
             } else {
                 console.log("message is null. Nothing to duplicate");
                 return 0;
@@ -167,27 +158,26 @@ class ChatApi {
 
 
     deleteMessage(sender_id, recipient_id, message_id, app_id) {
-        var path = '/apps/'+app_id+'/users/'+sender_id+'/messages/'+recipient_id+'/'+message_id;
+        var path = '/apps/' + app_id + '/users/' + sender_id + '/messages/' + recipient_id + '/' + message_id;
         // console.log("path", path);
 
         console.log("deleteMessage from " + path);
-        return admin.database().ref(path).remove()   
+        return admin.database().ref(path).remove()
 
     }
 
 
     deleteMessageGroupForAll(group_id, message_id, app_id) {
         this.deleteMessageFromGroupTimeline(group_id, message_id, app_id);
-        return  this.deleteMessageFromMembersTimeline(group_id, message_id, app_id);
+        return this.deleteMessageFromMembersTimeline(group_id, message_id, app_id);
     }
 
     deleteMessageFromGroupTimeline(group_id, message_id, app_id) {
-        var path = '/apps/'+app_id+'/messages/'+group_id+'/'+message_id;
+        var path = '/apps/' + app_id + '/messages/' + group_id + '/' + message_id;
         // console.log("path", path);
 
         console.log("deleteMessageFromGroupTimeline from " + path);
-        return admin.database().ref(path).remove()   
-
+        return admin.database().ref(path).remove()
     }
 
     deleteMessageFromMembersTimeline(group_id, message_id, app_id) {
@@ -195,21 +185,21 @@ class ChatApi {
         var updates = {};
 
         return chatApi.getAllGroupMembers(group_id, app_id).then(function (groupMembers) {
-            
-            groupMembers.forEach(function(groupMember) {
-            //   DEBUG console.log('groupMember ' + groupMember);            
-                        updates['/'+groupMember+'/messages/'+group_id + '/'+ message_id] = null; 
-                   
-                });
-        
-                console.log('deleteMessageFromMembersTimeline with message  FROM ' + JSON.stringify(updates) );
-                
-                return admin.database().ref('/apps/'+app_id+'/users').update(updates);        
-            }); 
+
+            groupMembers.forEach(function (groupMember) {
+                //   DEBUG console.log('groupMember ' + groupMember);            
+                updates['/' + groupMember + '/messages/' + group_id + '/' + message_id] = null;
+
+            });
+
+            console.log('deleteMessageFromMembersTimeline with message  FROM ' + JSON.stringify(updates));
+
+            return admin.database().ref('/apps/' + app_id + '/users').update(updates);
+        });
     }
 
     deleteConversation(user_id, recipient_id, app_id) {
-        var path = '/apps/'+app_id+'/users/'+user_id+'/conversations/'+recipient_id;
+        var path = '/apps/' + app_id + '/users/' + user_id + '/conversations/' + recipient_id;
 
         console.log("deleteConversation from " + path);
         return admin.database().ref(path).remove();
@@ -218,143 +208,133 @@ class ChatApi {
     //NOT in use
     deleteArchivedConversationIfExists(user_id, recipient_id, app_id) {
         var that = this;
-        return new Promise(function(resolve, reject) {
+        return new Promise(function (resolve, reject) {
 
-            var path = '/apps/'+app_id+'/users/'+user_id+'/archived_conversations/'+recipient_id;
-            return admin.database().ref(path).once('value').then(function(conversationSnapshot) {
+            var path = '/apps/' + app_id + '/users/' + user_id + '/archived_conversations/' + recipient_id;
+            return admin.database().ref(path).once('value').then(function (conversationSnapshot) {
                 //console.log('conversationSnapshot ' + JSON.stringify(conversationSnapshot) );
-                if (conversationSnapshot.val()){ //exists
-                    console.log('conversationSnapshot exists ' + JSON.stringify(conversationSnapshot.val()) );
-                    return that.deleteArchivedConversation(user_id, recipient_id, app_id).then(function(){
+                if (conversationSnapshot.val()) { //exists
+                    console.log('conversationSnapshot exists ' + JSON.stringify(conversationSnapshot.val()));
+                    return that.deleteArchivedConversation(user_id, recipient_id, app_id).then(function () {
                         return resolve(conversationSnapshot.val());
                     });
-                }else {
+                } else {
                     console.log('conversationSnapshot not exists ');
                     return resolve();
                 }
             });
-
-             
         });
     }
 
     deleteArchivedConversation(user_id, recipient_id, app_id) {
-        // return new Promise(function(resolve, reject) {
+        var path = '/apps/' + app_id + '/users/' + user_id + '/archived_conversations/' + recipient_id;
 
-            var path = '/apps/'+app_id+'/users/'+user_id+'/archived_conversations/'+recipient_id;
-
-            console.log("deleteArchivedConversation from " + path);
-            return admin.database().ref(path).remove();
-            // .then(function(a) {
-            //     console.log("aXXXX " + a);
-            //     return resolve(a);
-            // })
-        // });
-
+        console.log("deleteArchivedConversation from " + path);
+        return admin.database().ref(path).remove();
     }
 
     archiveConversationForAllGroupMembers(group_id, app_id) {
         var that = this;
         return chatApi.getAllGroupMembers(group_id, app_id).then(function (groupMembers) {
-            
-            groupMembers.forEach(function(groupMember) {
-                    console.log('groupMember ' + groupMember);            
-                    that.archiveConversation(groupMember, group_id, app_id);
-                   
-                });
-        
-                console.log('archiveConversationForAllMembers');
-                
-                return 0;
-            }); 
+
+            groupMembers.forEach(function (groupMember) {
+                console.log('groupMember ' + groupMember);
+                that.archiveConversation(groupMember, group_id, app_id);
+
+            });
+
+            console.log('archiveConversationForAllMembers');
+
+            return 0;
+        });
 
     }
 
     archiveConversation(user_id, recipient_id, app_id) {
-        var path = '/apps/'+app_id+'/users/'+user_id+'/conversations/'+recipient_id;
+        var path = '/apps/' + app_id + '/users/' + user_id + '/conversations/' + recipient_id;
 
         var that = this;
-        
-        return admin.database().ref(path).once('value').then(function(conversationSnapshot) {
-            console.log('conversationSnapshot ' + JSON.stringify(conversationSnapshot) );
-            
-    
-            
-            if (conversationSnapshot.val()!=null){ 
+
+        return admin.database().ref(path).once('value').then(function (conversationSnapshot) {
+            console.log('conversationSnapshot ' + JSON.stringify(conversationSnapshot));
+
+
+
+            if (conversationSnapshot.val() != null) {
                 var conversation = conversationSnapshot.val();
 
                 //update timestamp
                 conversation.timestamp = admin.database.ServerValue.TIMESTAMP;
 
-                var newpath = '/apps/'+app_id+'/users/'+user_id+'/archived_conversations/'+recipient_id;
+                var newpath = '/apps/' + app_id + '/users/' + user_id + '/archived_conversations/' + recipient_id;
 
-                console.log("archiving conversation from " + path + " to path "+ newpath);
+                console.log("archiving conversation from " + path + " to path " + newpath);
                 return admin.database().ref(newpath).set(conversation).then(writeResult => {
                     // Send back a message that we've succesfully written the message
                     console.log(`successfully copied`);
-            
+
                     return that.deleteConversation(user_id, recipient_id, app_id);
                 });
-        
-            }else {
+
+            } else {
                 console.log("conversation not found under " + path);
                 return 0;
             }
         });
-        
+
     }
 
     getLastMessage(sender_id, recipient_id, app_id) {
-        const messagePath = '/apps/'+app_id+'/users/'+sender_id+'/messages/'+recipient_id;
+        const messagePath = '/apps/' + app_id + '/users/' + sender_id + '/messages/' + recipient_id;
         //console.log("messagePath:",messagePath);
 
-        return new Promise(function(resolve, reject) {
-            return admin.database().ref(messagePath).orderByChild("timestamp").limitToLast(1).once('value').then(function(lastMessageSnapshot) {
+        return new Promise(function (resolve, reject) {
+            return admin.database().ref(messagePath).orderByChild("timestamp").limitToLast(1).once('value').then(function (lastMessageSnapshot) {
                 //console.log('lastMessageSnapshot ' + JSON.stringify(lastMessageSnapshot) );
-                
-                if (lastMessageSnapshot.val()!=null){ 
-                
+
+                if (lastMessageSnapshot.val() != null) {
+
                     var messageWithId = lastMessageSnapshot.val();
                     // console.log('messageWithId ' + JSON.stringify(messageWithId) );
-        
 
-                    const message =  messageWithId[Object.keys(messageWithId)[0]]; 
-                    
+
+                    const message = messageWithId[Object.keys(messageWithId)[0]];
+
                     return resolve(message);
-                }else {
-                    var error = 'Empty message for  sender_id'+ sender_id +' and recipient_id ' + recipient_id;
-                    console.log(error );
+                } else {
+                    var error = 'Empty message for  sender_id' + sender_id + ' and recipient_id ' + recipient_id;
+                    console.log(error);
                     //recipient_id is NOT a group
                     // return 0;
                     return reject(error);
                 }
-        
-        
-            }).catch(function(error) {
+
+
+            }).catch(function (error) {
                 return reject(error);
             })
         });
-    
+
     }
 
 
     createConversationInternal(sender_id, recipient_id, app_id, message) {
         //console.log("sender_id: "+ sender_id + ", recipient_id : " + recipient_id + ", app_id: " + app_id + ", message: " + message);
 
-        if (message.attributes && message.attributes.updateconversation==false) {
+        if (message.attributes && message.attributes.updateconversation == false) {
             console.log('not update the conversation because updateconversation is false');
             return 0;
         }
 
-        if (message.attributes && message.attributes.updateconversationfor && message.attributes.updateconversationfor.length>0 && message.attributes.updateconversationfor.indexOf(sender_id)==-1) {
+        if (message.attributes && message.attributes.updateconversationfor && message.attributes.updateconversationfor.length > 0 && message.attributes.updateconversationfor.indexOf(sender_id) == -1) {
             console.log('not update the conversation because updateconversationfor is defined with value', message.attributes.updateconversationfor);
             return 0;
         }
-    
+
         var conversation = {};
         // console.log("message.status : " + message.status);       
-    
-        if (message.status == null || message.status==chatApi.CHAT_MESSAGE_STATUS.SENDING) { //i'm the sender
+
+        if (message.status == null || message.status == chatApi.CHAT_MESSAGE_STATUS.SENDING) { //i'm the sender
             conversation.is_new = false;
             conversation.sender = sender_id; //message.sender could be null because saveMessage could be called after
             conversation.recipient = recipient_id;  ///message.recipient could be null because saveMessage could be called after  
@@ -362,31 +342,31 @@ class ChatApi {
         } else {
             conversation.is_new = true;
             conversation.sender = message.sender;
-            conversation.recipient = message.recipient;  
+            conversation.recipient = message.recipient;
             conversation.status = message.status;
         }
-       
+
         conversation.last_message_text = message.text;
-        if (message.sender_fullname){ //message potrebbe non avere il sender fullname perche la app non l'ha passato. in questo caso se nn c'è il fullname anche la conversation non ha il fullname
+        if (message.sender_fullname) { //message potrebbe non avere il sender fullname perche la app non l'ha passato. in questo caso se nn c'è il fullname anche la conversation non ha il fullname
             conversation.sender_fullname = message.sender_fullname;
         }
-        if (message.recipient_fullname){        
+        if (message.recipient_fullname) {
             conversation.recipient_fullname = message.recipient_fullname;
         }
-    
-        if (message.channel_type!=null) {
+
+        if (message.channel_type != null) {
             conversation.channel_type = message.channel_type;
-        }else {
+        } else {
             conversation.channel_type = "direct";
         }
-        
-        if (message.type!=null) {
+
+        if (message.type != null) {
             conversation.type = message.type;
         }
-    
+
         //conversation.status = message.status;
         //conversation.status = 2;
-    
+
         conversation.timestamp = admin.database.ServerValue.TIMESTAMP;
         if (message.timestamp) {
             //console.log("message.timestamp",message.timestamp);
@@ -396,12 +376,12 @@ class ChatApi {
         // if (message.attributes) {
         //     conversation.attributes = message.attributes;
         // }
-        
+
         // elimina
         if (message.senderAuthInfo) {
             conversation.senderAuthInfo = message.senderAuthInfo;
         }
-    
+
 
 
 
@@ -416,8 +396,8 @@ class ChatApi {
 
 
         //delete archived conv if present
-    //    chatApi.deleteArchivedConversation(sender_id, recipient_id, app_id);
-    
+        //    chatApi.deleteArchivedConversation(sender_id, recipient_id, app_id);
+
         // chatApi.deleteArchivedConversationIfExists(sender_id, recipient_id, app_id).then(function(archived_conversation) {
         //     // console.log('archived_conversation', archived_conversation);
         //     if (archived_conversation && 
@@ -428,23 +408,23 @@ class ChatApi {
         //         if (functions.config().support && functions.config().support.enabled) {
         //             return chatSupportApi.openChat(archived_conversation.recipient, app_id);
         //         }
-                
+
         //     }
         // });
-    
-    
-    
-        
-        var path = '/apps/'+app_id+'/users/'+sender_id+'/conversations/'+recipient_id;
-    
-        console.log('creating conversation ' + JSON.stringify(conversation) + " to: "+ path);
-    
+
+
+
+
+        var path = '/apps/' + app_id + '/users/' + sender_id + '/conversations/' + recipient_id;
+
+        console.log('creating conversation ' + JSON.stringify(conversation) + " to: " + path);
+
         return admin.database().ref(path).update(conversation).then(writeResult => {
             console.log(`conversation created`);
-    
+
             if (message.attributes) {
 
-                if (!message.attributes['subtype']) { 
+                if (!message.attributes['subtype']) {
                     //message.attributes['subtype'] = 'standard'; //reset conversation.attributes.subtype. otherwise if a message is sent with subtype = info the next messages have the subtype=info under conv.attributes
                     message.attributes['subtype'] = null; //reset conversation.attributes.subtype. otherwise if a message is sent with subtype = info the next messages have the subtype=info under conv.attributes
                 }
@@ -453,7 +433,7 @@ class ChatApi {
             }
             return 0;
 
-            
+
         });
     }
 
@@ -462,15 +442,15 @@ class ChatApi {
 
     updateAttributesConversation(sender_id, recipient_id, app_id, attributes) {
 
-        var path = '/apps/'+app_id+'/users/'+sender_id+'/conversations/'+recipient_id + '/attributes';
+        var path = '/apps/' + app_id + '/users/' + sender_id + '/conversations/' + recipient_id + '/attributes';
         console.log("path", path);
-       
+
         if (attributes) {
             console.log("attributes " + JSON.stringify(attributes) + " is updating attributes of group " + path);
             return admin.database().ref(path).update(attributes);
         }
         return 0;
-        
+
     }
 
 
@@ -479,29 +459,29 @@ class ChatApi {
     getGroupById(group_id, app_id) {
         // DEBUG console.log("getting group with id " + group_id + " and app_id "+ app_id);
 
-        return new Promise(function(resolve, reject) {
+        return new Promise(function (resolve, reject) {
             // Do async job
-            return admin.database().ref('/apps/'+app_id+'/groups/'+group_id).once('value').then(function(groupSnapshot) {
+            return admin.database().ref('/apps/' + app_id + '/groups/' + group_id).once('value').then(function (groupSnapshot) {
                 // DEBUG console.log('groupSnapshot ' + JSON.stringify(groupSnapshot) );
                 //console.log('snapshot.val() ' + JSON.stringify(snapshot.val()) );
-        
-                
-                if (groupSnapshot.val()!=null){ //recipient_id is a GROUP
+
+
+                if (groupSnapshot.val() != null) { //recipient_id is a GROUP
                     var group = groupSnapshot.val();
                     // DEBUG console.log('group ' + JSON.stringify(group) );
-        
-                    
+
+
                     return resolve(group);
-                }else {
-                    var error = 'Warning: Group '+ group_id +' not found ';
-                    console.log(error );
+                } else {
+                    var error = 'Warning: Group ' + group_id + ' not found ';
+                    console.log(error);
                     //recipient_id is NOT a group
                     // return 0;
                     return reject(error);
                 }
-        
-        
-            }).catch(function(error) {
+
+
+            }).catch(function (error) {
                 return reject(error);
             })
         });
@@ -511,26 +491,26 @@ class ChatApi {
         // DEBUG console.log('getGroupMembers ', this );
         var that = this;
 
-        return new Promise(function(resolve, reject) {
+        return new Promise(function (resolve, reject) {
 
             return that.getGroupById(group_id, app_id)
-                .then(function(group) {
+                .then(function (group) {
 
                     // if (group) {
-                        var groupMembers = group.members;
+                    var groupMembers = group.members;
 
-                        // DEBUG console.log("groupMembers", groupMembers);
+                    // DEBUG console.log("groupMembers", groupMembers);
 
-                        var groupMembersAsArray = Object.keys(groupMembers);
-                    
+                    var groupMembersAsArray = Object.keys(groupMembers);
+
                     //    DEBUG  console.log("groupMembersAsArray", groupMembersAsArray);
 
-                        return resolve(groupMembersAsArray);
+                    return resolve(groupMembersAsArray);
                     // }
 
 
-                
-                }).catch(function(error){
+
+                }).catch(function (error) {
                     return reject(error);
                 });
         });
@@ -540,18 +520,18 @@ class ChatApi {
         // DEBUG console.log('getGroupMembers ', this );
         var that = this;
 
-        return new Promise(function(resolve, reject) {
+        return new Promise(function (resolve, reject) {
 
             return that.getGroupById(group_id, app_id)
-                .then(function(group) {
+                .then(function (group) {
 
                     var groupMembers = group.members;
 
-                     if (groupMembers) {
-                        
+                    if (groupMembers) {
+
                         // DEBUG console.log("groupMembers", groupMembers);
                         var groupMembersAsArray = Object.keys(groupMembers);
-                        
+
                         var allMembers = groupMembersAsArray;
 
                         var invitedGroupMembers = group.invited_members;
@@ -559,35 +539,32 @@ class ChatApi {
                         if (invitedGroupMembers) {
                             var invitedGroupMembersAsArray = Object.keys(invitedGroupMembers);
                             console.log("invitedGroupMembersAsArray", invitedGroupMembersAsArray);
-    
+
                             allMembers = groupMembersAsArray.concat(invitedGroupMembersAsArray);
                         }
-                       
+
 
                         console.log("allMembers", allMembers);
 
                         return resolve(allMembers);
 
-                     } else {
-                        var error = 'Warning: Group members for '+ group_id +' not found ';
-                        console.log(error );
+                    } else {
+                        var error = 'Warning: Group members for ' + group_id + ' not found ';
+                        console.log(error);
                         return reject(error);
-                     }
+                    }
 
 
-                
-                }).catch(function(error){
+
+                }).catch(function (error) {
                     return reject(error);
                 });
         });
     }
 
-        
+
     createGroup(group_name, group_owner, group_members, app_id, attributes, invited_members) {
-
-        var path = '/apps/'+app_id+'/groups/';
-        // console.log("path", path);
-
+        var path = '/apps/' + app_id + '/groups/';
 
         var group = {};
         group.name = group_name;
@@ -595,7 +572,7 @@ class ChatApi {
         group.members = group_members;
         group.iconURL = "NOICON";
         group.createdOn = admin.database.ServerValue.TIMESTAMP;
-        
+
         if (attributes) {
             group.attributes = attributes;
         }
@@ -603,15 +580,15 @@ class ChatApi {
         if (invited_members) {
             group.invited_members = invited_members;
         }
-        
-        console.log("creating group " + JSON.stringify(group) + " to "+ path);
+
+        console.log("creating group " + JSON.stringify(group) + " to " + path);
         return admin.database().ref(path).push(group);
     }
 
-  
+
     createGroupWithId(group_id, group_name, group_owner, group_members, app_id, attributes, invited_members) {
 
-        var path = '/apps/'+app_id+'/groups/'+group_id;
+        var path = '/apps/' + app_id + '/groups/' + group_id;
         // console.log("path", path);
 
 
@@ -621,7 +598,7 @@ class ChatApi {
         group.members = group_members;
         group.iconURL = "NOICON";
         group.createdOn = admin.database.ServerValue.TIMESTAMP;
-        
+
         if (attributes) {
             group.attributes = attributes;
         }
@@ -630,13 +607,13 @@ class ChatApi {
             group.invited_members = invited_members;
         }
 
-        console.log("creating group " + JSON.stringify(group) + " to "+ path);
+        console.log("creating group " + JSON.stringify(group) + " to " + path);
         return admin.database().ref(path).set(group);
     }
 
     updateGroupWithId(group_id, group_name, group_owner, group_members, app_id, attributes, invited_members) {
 
-        var path = '/apps/'+app_id+'/groups/'+group_id;
+        var path = '/apps/' + app_id + '/groups/' + group_id;
         // console.log("path", path);
 
 
@@ -650,13 +627,13 @@ class ChatApi {
         }
         if (attributes) {
             group.attributes = attributes;
-        }        
+        }
 
         if (invited_members) {
             group.invited_members = invited_members;
         }
 
-        console.log("updating group " + JSON.stringify(group) + " to "+ path);
+        console.log("updating group " + JSON.stringify(group) + " to " + path);
         return admin.database().ref(path).update(group);
     }
 
@@ -664,13 +641,13 @@ class ChatApi {
 
     joinGroup(member_id, group_id, app_id) {
 
-        var path = '/apps/'+app_id+'/groups/'+group_id+'/members/';
+        var path = '/apps/' + app_id + '/groups/' + group_id + '/members/';
         // DEBUG console.log("path", path);
 
 
         var member = {};
         member[member_id] = 1;
-        
+
         console.log("member " + JSON.stringify(member) + " is joining group " + path);
         return admin.database().ref(path).update(member);
     }
@@ -678,10 +655,10 @@ class ChatApi {
 
     leaveGroup(member_id, group_id, app_id) {
 
-        var path = '/apps/'+app_id+'/groups/'+group_id+'/members/'+member_id;
+        var path = '/apps/' + app_id + '/groups/' + group_id + '/members/' + member_id;
         // DEBUG console.log("path", path);
 
-        
+
         console.log("leaving member from " + path);
         // return admin.database().ref(path).update(null);
         return admin.database().ref(path).remove();
@@ -689,10 +666,10 @@ class ChatApi {
 
     updateAttributesGroup(attributes, group_id, app_id) {
 
-        var path = '/apps/'+app_id+'/groups/'+group_id+'/attributes/';
+        var path = '/apps/' + app_id + '/groups/' + group_id + '/attributes/';
         // DEBUG console.log("path", path);
-       
-        
+
+
         console.log("attributes " + JSON.stringify(attributes) + " is updating attributes of group " + path);
         return admin.database().ref(path).update(attributes);
     }
@@ -700,40 +677,40 @@ class ChatApi {
 
     saveMemberInfo(member_id, group_id, app_id) {
 
-        var path = '/apps/'+app_id+'/groups/'+group_id+'/membersinfo/'+member_id;
+        var path = '/apps/' + app_id + '/groups/' + group_id + '/membersinfo/' + member_id;
         // DEBUG console.log("path", path);
 
 
         return admin.auth().getUser(member_id)
-            .then(function(userRecord) {
+            .then(function (userRecord) {
                 // See the UserRecord reference doc for the contents of userRecord.
                 // console.log("Successfully fetched user data:", userRecord.toJSON());
                 console.log("saving membersinfo " + JSON.stringify(userRecord) + " to group " + path);
-                
+
                 //Object.keys(userRecord).forEach(key => userRecord[key] === undefined ? delete userRecord[key] : '');
                 var userRecordJson = userRecord.toJSON();
 
                 removeEmpty(userRecordJson);
-                console.log("userRecordJson",userRecordJson);
-                
+                console.log("userRecordJson", userRecordJson);
+
                 return admin.database().ref(path).set(userRecordJson);
 
             })
-            .catch(function(error) {
+            .catch(function (error) {
                 console.log("Error fetching user data:", error);
                 return 0;
             });
 
-       
+
     }
     deleteMemberInfo(member_id, group_id, app_id) {
 
-        var path = '/apps/'+app_id+'/groups/'+group_id+'/membersinfo/'+member_id;
+        var path = '/apps/' + app_id + '/groups/' + group_id + '/membersinfo/' + member_id;
         // DEBUG console.log("path", path);
 
-        
+
         console.log("deleteMemberInfo " + path);
-        
+
         return admin.database().ref(path).remove();
     }
 
@@ -741,10 +718,10 @@ class ChatApi {
 
     setMembersGroup(members, group_id, app_id) {
 
-        var path = '/apps/'+app_id+'/groups/'+group_id+'/members/';
+        var path = '/apps/' + app_id + '/groups/' + group_id + '/members/';
         // DEBUG console.log("path", path);
 
-        
+
         console.log("setting members " + JSON.stringify(members) + " for group " + path);
         return admin.database().ref(path).set(members);
     }
@@ -753,33 +730,33 @@ class ChatApi {
     getContactById(contact_id, app_id) {
         //console.log("getting contact with id " + contact_id + " and app_id "+ app_id);
 
-        return new Promise(function(resolve, reject) {
+        return new Promise(function (resolve, reject) {
             // Do async job
-            return admin.database().ref('/apps/'+app_id+'/contacts/'+contact_id).once('value').then(function(contactSnapshot) {
-               //console.log('contactSnapshot ' + JSON.stringify(contactSnapshot) );        
-                
-                if (contactSnapshot.val()!=null){ 
+            return admin.database().ref('/apps/' + app_id + '/contacts/' + contact_id).once('value').then(function (contactSnapshot) {
+                //console.log('contactSnapshot ' + JSON.stringify(contactSnapshot) );        
+
+                if (contactSnapshot.val() != null) {
                     var contact = contactSnapshot.val();
                     //console.log('contact ' + JSON.stringify(contact) );
-        
-                    
+
+
                     return resolve(contact);
-                }else {
-                    var error = 'Warning: Contact '+ contact_id +' not found ';
-                    console.log(error );
+                } else {
+                    var error = 'Warning: Contact ' + contact_id + ' not found ';
+                    console.log(error);
                     //recipient_id is NOT a group
                     // return 0;
                     return reject(error);
                 }
-        
-        
+
+
             });
         });
     }
 
     createContactWithId(uid, firstname, lastname, email, app_id) {
 
-        var path = '/apps/'+app_id+'/contacts/'+uid;
+        var path = '/apps/' + app_id + '/contacts/' + uid;
         console.log("path", path);
 
 
@@ -790,29 +767,29 @@ class ChatApi {
         contact.email = email;
         contact.imageurl = "";
         contact.timestamp = admin.database.ServerValue.TIMESTAMP;
-        
-        console.log("creating contact " + JSON.stringify(contact) + " to "+ path);
+
+        console.log("creating contact " + JSON.stringify(contact) + " to " + path);
         return admin.database().ref(path).set(contact);
     }
 
     changeContactFullname(uid, firstname, lastname, app_id) {
 
-        var path = '/apps/'+app_id+'/contacts/'+uid;
+        var path = '/apps/' + app_id + '/contacts/' + uid;
         console.log("path", path);
 
 
         var contact = {};
         contact.firstname = firstname;
         contact.lastname = lastname;
-    
-        
-        console.log("updating contact " + JSON.stringify(contact) + " to "+ path);
+
+
+        console.log("updating contact " + JSON.stringify(contact) + " to " + path);
         return admin.database().ref(path).update(contact);
     }
 
     updateContactWithId(uid, firstname, lastname, email, app_id) {
 
-        var path = '/apps/'+app_id+'/contacts/'+uid;
+        var path = '/apps/' + app_id + '/contacts/' + uid;
         console.log("path", path);
 
 
@@ -821,15 +798,15 @@ class ChatApi {
         contact.lastname = lastname;
         contact.uid = uid;
         contact.email = email;
-        
-        console.log("updating contact " + JSON.stringify(contact) + " to "+ path);
+
+        console.log("updating contact " + JSON.stringify(contact) + " to " + path);
         return admin.database().ref(path).set(contact);
     }
 
     deleteContactBucket(uid, app_id) {
         // https://stackoverflow.com/questions/37749647/firebasestorage-how-to-delete-directory
         //var fileBucket = 'profiles/'+uid+'/';
-        var fileBucket = uid+'/';
+        var fileBucket = uid + '/';
         //var fileBucket = 'a.jpg';
         //var fileBucket = '1234/';
         console.log("fileBucket", fileBucket);
@@ -841,7 +818,7 @@ class ChatApi {
 
         return admin.storage().bucket('chat-v2-dev.appspot.com').deleteFiles({
             prefix: `profiles/${uid}/`
-          });
+        });
         //   , function(err) {
         //     if (err) {
         //       console.log(err);
@@ -855,19 +832,19 @@ class ChatApi {
 
     typing(writer_id, recipient_id, text, timestamp, app_id) {
 
-        var path = '/apps/'+app_id+'/typings/'+recipient_id;
+        var path = '/apps/' + app_id + '/typings/' + recipient_id;
         // DEBUG  console.log("path", path);
-    
-    
+
+
         if (!timestamp) {
             timestamp = new Date();
         }
-        
+
         var typing = {};
-        var subObj = {message: text, timestamp:timestamp};
+        var subObj = { message: text, timestamp: timestamp };
         typing[writer_id] = subObj;
-                    
-        console.log("typing typing " + typing  + " to " + path);
+
+        console.log("typing typing " + typing + " to " + path);
         return admin.database().ref(path).update(typing);
     }
 
@@ -875,10 +852,10 @@ class ChatApi {
     // deprecated
     stopTyping(writer_id, recipient_id, app_id) {
 
-        var path = '/apps/'+app_id+'/typings/'+recipient_id+"/"+ writer_id;
+        var path = '/apps/' + app_id + '/typings/' + recipient_id + "/" + writer_id;
         // DEBUG  console.log("path", path);
-    
-    
+
+
         console.log("stopTyping for " + path);
         return admin.database().ref(path).remove();
     }
@@ -906,21 +883,21 @@ class ChatApi {
         // }
 
         console.log("insertAndSendMessageInternal.message", message);
-    
-        return Promise.all([ this.insertMessageInternal(messageRef, message, sender_id, recipient_id, timestamp),
-            this.sendMessageToTimelineInternal(message, sender_id, recipient_id, message_id, app_id, timestamp)]);
-                //.then(function(snapshots) {
+
+        return Promise.all([this.insertMessageInternal(messageRef, message, sender_id, recipient_id, timestamp),
+        this.sendMessageToTimelineInternal(message, sender_id, recipient_id, message_id, app_id, timestamp)]);
+        //.then(function(snapshots) {
         // });
-        
+
         // this.insertMessageInternal(messageRef, message, sender_id, recipient_id, timestamp);
         // return this.sendMessageToTimelineInternal(message, sender_id, recipient_id, message_id, app_id, timestamp);
 
     }
 
     insertAndSendMessageInternalUpdates(messageRef, message, sender_id, recipient_id, message_id, app_id) {
-        var updates= [];
+        var updates = [];
         const timestamp = admin.database.ServerValue.TIMESTAMP
-        
+
     }
 
     insertMessageInternalUpdates(message, sender_id, recipient_id, timestamp) {
@@ -930,47 +907,47 @@ class ChatApi {
         update.recipient = recipient_id;
         update.timestamp = timestamp;
 
-        if (message.channel_type==null) {  //is a direct message
-            update.channel_type = "direct"; 
+        if (message.channel_type == null) {  //is a direct message
+            update.channel_type = "direct";
         }
-    //set the status = 100 only if message.status is null. If message.status==200 (came form sendMessage) saveMessage not must modify the value
-    // console.log("message.status : " + message.status);        
+        //set the status = 100 only if message.status is null. If message.status==200 (came form sendMessage) saveMessage not must modify the value
+        // console.log("message.status : " + message.status);        
         update.status = chatApi.CHAT_MESSAGE_STATUS.SENT; //MSG_STATUS_RECEIVED_ON_PERSIONAL_TIMELINE
-      
+
 
         console.log('inserting new message  with ' + JSON.stringify(update));
 
         return update;
     }
 
-    insertMessageInternal(messageRef, message, sender_id, recipient_id, timestamp) {       
+    insertMessageInternal(messageRef, message, sender_id, recipient_id, timestamp) {
         return messageRef.update(this.insertMessageInternalUpdates(message, sender_id, recipient_id, timestamp));
     }
 
 
 
     sendMessageToTimelineInternal(message, sender_id, recipient_id, message_id, app_id, timestamp) {
-   
+
         message.sender = sender_id;
         message.recipient = recipient_id;
         message.timestamp = timestamp;
 
-        if (message.channel_type==null) {  //is a direct message
-            message.channel_type = "direct"; 
+        if (message.channel_type == null) {  //is a direct message
+            message.channel_type = "direct";
         }
 
-        message.status = chatApi.CHAT_MESSAGE_STATUS.DELIVERED;                                        
+        message.status = chatApi.CHAT_MESSAGE_STATUS.DELIVERED;
 
-        if (message.channel_type=="direct") {  //is a direct message            
+        if (message.channel_type == "direct") {  //is a direct message            
             // DEBUG console.log('sending direct message ' + JSON.stringify(message) );
 
-            return chatApi.sendDirectMessageToRecipientTimeline(sender_id, recipient_id, message, message_id, app_id);            
-        }else {//is a group message
+            return chatApi.sendDirectMessageToRecipientTimeline(sender_id, recipient_id, message, message_id, app_id);
+        } else {//is a group message
             // DEBUG console.log('sending group message ' + JSON.stringify(message) );
-             //send to group timeline
+            //send to group timeline
 
-             return Promise.all([ chatApi.sendMessageToGroupTimeline(recipient_id, message, message_id, app_id),
-                chatApi.sendGroupMessageToMembersTimeline(sender_id, recipient_id, message, message_id, app_id)]);
+            return Promise.all([chatApi.sendMessageToGroupTimeline(recipient_id, message, message_id, app_id),
+            chatApi.sendGroupMessageToMembersTimeline(sender_id, recipient_id, message, message_id, app_id)]);
 
 
             //  chatApi.sendMessageToGroupTimeline(recipient_id, message, message_id, app_id);            
@@ -981,46 +958,46 @@ class ChatApi {
 
     sendDirectMessageToRecipientTimeline(sender_id, recipient_id, message, message_id, app_id) {
         var updates = {};
-        
-        updates['/'+recipient_id+'/messages/'+sender_id + '/'+ message_id] = message;   
-        // console.log('updates ' + JSON.stringify(updates) );
-        
-        console.log('sendDirectMessageToRecipientTimeline with message' + message + " TO: " + JSON.stringify(updates));           
 
-        return admin.database().ref('/apps/'+app_id+'/users').update(updates);
+        updates['/' + recipient_id + '/messages/' + sender_id + '/' + message_id] = message;
+        // console.log('updates ' + JSON.stringify(updates) );
+
+        console.log('sendDirectMessageToRecipientTimeline with message' + message + " TO: " + JSON.stringify(updates));
+
+        return admin.database().ref('/apps/' + app_id + '/users').update(updates);
     }
 
 
     sendMessageToGroupTimeline(group_id, message, message_id, app_id) {
         var updates = {};
-        
-        updates['/messages/' + group_id + '/'+ message_id] = message;   
-        // console.log('updates ' + JSON.stringify(updates) );
-        
-        console.log('sendMessageToGroupTimeline with message' + JSON.stringify(message) + " TO: " + JSON.stringify(updates) );           
 
-        return admin.database().ref('/apps/'+app_id).update(updates);
+        updates['/messages/' + group_id + '/' + message_id] = message;
+        // console.log('updates ' + JSON.stringify(updates) );
+
+        console.log('sendMessageToGroupTimeline with message' + JSON.stringify(message) + " TO: " + JSON.stringify(updates));
+
+        return admin.database().ref('/apps/' + app_id).update(updates);
     }
 
     sendGroupMessageToMembersTimeline(sender_id, recipient_group_id, message, message_id, app_id) {
 
         var updates = {};
-        
+
         return chatApi.getAllGroupMembers(recipient_group_id, app_id).then(function (groupMembers) {
-          
-            groupMembers.forEach(function(groupMember) {
-              //   DEBUG console.log('groupMember ' + groupMember);
-        
-                    //DON'T send a message to the sender of the message 
-                    if (groupMember!=sender_id) { 
-                        updates['/'+groupMember+'/messages/'+recipient_group_id + '/'+ message_id] = message; 
-                    }
+
+            groupMembers.forEach(function (groupMember) {
+                //   DEBUG console.log('groupMember ' + groupMember);
+
+                //DON'T send a message to the sender of the message 
+                if (groupMember != sender_id) {
+                    updates['/' + groupMember + '/messages/' + recipient_group_id + '/' + message_id] = message;
+                }
             });
-        
-                console.log('sendGroupMessageToMembersTimeline with message ' + JSON.stringify(message) + " TO: " + JSON.stringify(updates) );
-                
-                return admin.database().ref('/apps/'+app_id+'/users').update(updates);        
-            }); 
+
+            console.log('sendGroupMessageToMembersTimeline with message ' + JSON.stringify(message) + " TO: " + JSON.stringify(updates));
+
+            return admin.database().ref('/apps/' + app_id + '/users').update(updates);
+        });
     }
 
 
@@ -1036,41 +1013,41 @@ class ChatApi {
                 console.log("Write completed");
                 return resolve(updates);
             }).catch(function (error) {
-                console.error("Write failed: " , error);
+                console.error("Write failed: ", error);
                 return reject(error);
             });
         });
     }
 
-    
+
 }
 
 
 var chatApi = new ChatApi();
 chatApi.CHAT_MESSAGE_STATUS = {
-            FAILED : -100,
-            SENDING : 0,
-            SENT : 100, //saved into sender timeline
-            DELIVERED : 150, //delivered to recipient timeline
-            RECEIVED : 200, //received from the recipient client
-            RETURN_RECEIPT: 250, //return receipt from the recipient client
-            SEEN : 300 //seen
-    
-        }
+    FAILED: -100,
+    SENDING: 0,
+    SENT: 100, //saved into sender timeline
+    DELIVERED: 150, //delivered to recipient timeline
+    RECEIVED: 200, //received from the recipient client
+    RETURN_RECEIPT: 250, //return receipt from the recipient client
+    SEEN: 300 //seen
+
+}
 
 chatApi.CHAT_MESSAGE_OPTIONS_KEY = {
-            UPDATE_CONVERSATION : "updateconversation",   //Boolean
+    UPDATE_CONVERSATION: "updateconversation",   //Boolean
 }
 
 chatApi.LABELS = {
-    EN : {
-        GROUP_CREATED_MESSAGE : "Group created",
+    EN: {
+        GROUP_CREATED_MESSAGE: "Group created",
     },
-    IT : {
-        GROUP_CREATED_MESSAGE : "Gruppo creato",
+    IT: {
+        GROUP_CREATED_MESSAGE: "Gruppo creato",
     },
-    "IT-IT" : {
-        GROUP_CREATED_MESSAGE : "Gruppo creato",
+    "IT-IT": {
+        GROUP_CREATED_MESSAGE: "Gruppo creato",
     }
 }
 
