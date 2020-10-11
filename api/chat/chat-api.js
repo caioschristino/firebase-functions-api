@@ -1,5 +1,4 @@
 const admin = require('firebase-admin');
-const gcs = require('@google-cloud/storage');
 
 const removeEmpty = (obj) =>
     Object.entries(obj).forEach(([key, val]) => {

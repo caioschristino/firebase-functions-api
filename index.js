@@ -5,7 +5,6 @@ const serviceAccount = require('./config/service-account.json');
 const credential = require('./config/credential');
 const app = require('./server');
 
-
 // To test the api in local and interact with the production database
 if (process.env === 'local') {
   admin.initializeApp({
@@ -14,7 +13,403 @@ if (process.env === 'local') {
   });
 } else {
   admin.initializeApp(credential[process.env.ENV]);
-  // admin.initializeApp();
 }
 
 exports.api = functions.https.onRequest(app);
+
+if (functions.config().support && functions.config().support.enabled && functions.config().support.enabled == "true") {
+  const supportChat = require('./api/support/chat-support');
+  exports.support = supportChat;
+}
+const chatSupportHttpApi = require('./api/support/chat-support-http-api');
+exports.supportapi = functions.https.onRequest(chatSupportHttpApi.api);
+
+
+if (functions.config().webhook && functions.config().webhook.enabled && functions.config().webhook.enabled == "true") {
+
+  const chatWebHook = require('./api/webhook/chat-webhook');
+  exports.webhook = chatWebHook;
+}
+
+if (functions.config().fbwebhook && functions.config().fbwebhook.enabled && functions.config().fbwebhook.enabled == "true") {
+  const chatFBWebHookHttpApi = require('./api/webhook/chat-fbwebhook-http-api');
+  exports.fbwebhookapi = functions.https.onRequest(chatFBWebHookHttpApi.api);
+
+  const chatFBWebHook = require('./api/webhook/chat-fbwebhook');
+  exports.fbwebhook = chatFBWebHook;
+}
+
+exports.insertAndSendMessage = functions.database.ref('/apps/{app_id}/users/{sender_id}/messages/{recipient_id}/{message_id}').onCreate((data, context) => {
+  const message_id = context.params.message_id;
+  const sender_id = context.params.sender_id;
+  const recipient_id = context.params.recipient_id;
+  const app_id = context.params.app_id;;
+  console.log("sender_id: " + sender_id + ", recipient_id : " + recipient_id + ", app_id: " + app_id + ", message_id: " + message_id);
+
+  const message = data.val();
+  console.log('message ' + JSON.stringify(message));
+
+  const messageRef = data.ref;
+
+  const authVar = context.auth; // Auth information for the user.
+  console.log('authVar ' + JSON.stringify(authVar));
+  const authType = context.authType; // Permissions level for the user.
+  console.log('authType ' + JSON.stringify(authType));
+
+  if (authVar && authType) {//First argument contains undefined in property 'apps.bbb2.messages.-LPkg7hrcixsLUSu7DAz.-LPkg8BKMeO-6AWEgNxy.senderAuthInfo.authVar'
+    //Object.keys(authVar).forEach(key => authVar[key] === undefined ? delete userRecord[key] : '');
+    message.senderAuthInfo = { "authVar": authVar, "authType": authType };
+  }
+
+  // console.log("message.status : " + message.status);        
+  if (message.status == null || message.status == chatApi.CHAT_MESSAGE_STATUS.SENDING) {
+    return chatApi.insertAndSendMessageInternal(messageRef, message, sender_id, recipient_id, message_id, app_id);
+  } else {
+    // DEBUG console.log("It's not a SENDING message. Nothing to update for insert");
+    return 0;
+  }
+});
+
+
+//se metto {uid} prende utente corrente
+exports.createConversation = functions.database.ref('/apps/{app_id}/users/{sender_id}/messages/{recipient_id}/{message_id}').onCreate((data, context) => {
+
+  const message_id = context.params.message_id;
+  const sender_id = context.params.sender_id;
+  const recipient_id = context.params.recipient_id;
+  const app_id = context.params.app_id;
+  const arrived_message = data.val();
+
+  return chatApi.getLastMessage(sender_id, recipient_id, app_id).then(function (lastmessage) {
+    if (lastmessage.timestamp && arrived_message.timestamp
+      && arrived_message.attributes.updateconversation != false //arriva un messaggio che deve aggiornare la conversazione
+      && lastmessage.attributes.updateconversation != false //last message è un messaggio che deve aggiornare la conversazione
+      && lastmessage.timestamp > arrived_message.timestamp) {
+      console.log('lastmessage.timestamp', lastmessage.timestamp, "greater than arrived_message", arrived_message.timestamp);
+      return chatApi.createConversationInternal(sender_id, recipient_id, app_id, lastmessage);
+    } else {
+      //console.log('message.timestamp',message.timestamp, "<= than arrived_message", arrived_message.timestamp);
+      return chatApi.createConversationInternal(sender_id, recipient_id, app_id, arrived_message);
+    }
+
+  }).catch(function (error) {
+    console.log('catch arrived_message', arrived_message);
+    return chatApi.createConversationInternal(sender_id, recipient_id, app_id, arrived_message);
+  })
+
+});
+
+exports.deleteArchivedConversation = functions.database.ref('/apps/{app_id}/users/{sender_id}/conversations/{recipient_id}').onCreate((data, context) => {
+  const sender_id = context.params.sender_id;
+  const recipient_id = context.params.recipient_id;
+  const app_id = context.params.app_id;;
+  console.log("sender_id: " + sender_id + ", recipient_id : " + recipient_id + ", app_id: " + app_id);
+
+
+  const conversation = data.val();
+  console.log('conversation ' + JSON.stringify(conversation));
+
+  return chatApi.deleteArchivedConversation(sender_id, recipient_id, app_id);
+});
+
+
+//only for direct message
+exports.sendMessageReturnReceipt = functions.database.ref('/apps/{app_id}/users/{sender_id}/messages/{recipient_id}/{message_id}').onUpdate((change, context) => {
+
+  const message_id = context.params.message_id;
+  const sender_id = context.params.sender_id;
+  const recipient_id = context.params.recipient_id;
+  const app_id = context.params.app_id;;
+  //    DEBUG  console.log("sender_id: "+ sender_id + ", recipient_id : " + recipient_id + ", app_id: " + app_id + ", message_id: " + message_id);
+
+  const message = change.after.val();
+
+  if (
+    (message.channel_type == null || message.channel_type == "direct") //only for direct message
+    //TODO ATTENTION && messageStatusSnapshot.changed() 
+    && message.status == chatApi.CHAT_MESSAGE_STATUS.RECEIVED
+  ) {
+
+    var path = '/apps/' + app_id + '/users/' + recipient_id + '/messages/' + sender_id + '/' + message_id;
+
+    console.log("sending return receipt for message " + JSON.stringify(message) + " to  : " + path);
+
+    //TODO controlla prima se il nodo su cui stai facendo l'update esiste altrimenti si crea una spazzatura
+    return admin.database().ref(path).update({ "status": chatApi.CHAT_MESSAGE_STATUS.RETURN_RECEIPT });
+  }
+
+  return 0;
+});
+
+exports.fanOutGroup = functions.database.ref('/apps/{tenantId}/groups/{groupId}').onWrite((data, context) => {
+  const tenantId = context.params.tenantId;
+  console.log("tenantId : " + tenantId);
+
+  const groupId = context.params.groupId;
+  console.log("groupId : " + groupId);
+
+
+  const group = data.after.val();
+
+  console.log('group ' + JSON.stringify(group));
+
+
+  if (group && group.owner) {
+    const owner = group.owner;
+    console.log('owner ' + owner);
+  }
+
+
+  if (group && group.name) {
+    const name = group.name;
+    console.log('group name ' + name);
+  }
+
+  var members = null
+  var membersAsArray = [];
+  if (group && group.members) {
+    members = group.members;
+    //console.log('members ' + JSON.stringify(members));
+    membersAsArray = Object.keys(members);
+    console.log('membersAsArray ' + JSON.stringify(membersAsArray));
+  }
+
+
+  //POTREI ITERARE I PREVIES MEMBER E AGGIORNALI TUTTI CON IL NUOVO GRUPPO
+
+  var previousMembers = null;
+  var previousMembersAsArray = [];
+
+  //var deletedMembers = [];
+  if (data.before.exists()) {
+    previousMembers = data.before.val().members;
+    console.log('previousMembers ' + JSON.stringify(previousMembers));
+    previousMembersAsArray = Object.keys(previousMembers);
+    console.log('previousMembersAsArray ' + JSON.stringify(previousMembersAsArray));
+  }
+
+
+  var membersToUpdate = membersAsArray.concat(previousMembersAsArray.filter(function (item) {
+    return membersAsArray.indexOf(item) < 0;
+  }));
+  console.log('membersToUpdate ' + JSON.stringify(membersToUpdate));
+
+
+  //aggiorno i gruppi replicati dei membri 
+  if (membersToUpdate) {
+    //Object.keys(membersToUpdate).forEach(function(key) {
+    membersToUpdate.forEach(function (memberToUpdate) {
+      console.log('memberToUpdate ' + memberToUpdate);
+
+      //COLDSTART PROBLEM RETURN??
+      admin.database().ref('/apps/' + tenantId + '/users/' + memberToUpdate + '/groups/' + groupId).set(group).then(snapshot => {
+        console.log("snapshot", snapshot);
+        return 0;
+      });
+    });
+
+    return 0;
+  }
+
+  return 0;
+});
+
+
+
+exports.sendInfoMessageOnGroupCreation = functions.database.ref('/apps/{app_id}/groups/{group_id}').onCreate((data, context) => {
+
+  const group_id = context.params.group_id;
+  const app_id = context.params.app_id;;
+  console.log("group_id: " + group_id + ", app_id: " + app_id);
+
+  const group = data.val();
+  console.log("group", group);
+
+  if (group_id.indexOf("support-group") > -1) {
+    console.log('dont send group creation message for support-group');
+    return 0;
+  }
+
+  var sender_id = "system";
+  var sender_fullname = "System";
+
+
+  if (group && group.name) {
+    return chatApi.sendGroupMessage(sender_id, sender_fullname, group_id, group.name, "Group created", app_id, { subtype: "info", updateconversation: true, messagelabel: { key: "GROUP_CREATED", parameters: { creator: group.owner } } });
+  }
+});
+
+
+exports.duplicateTimelineOnJoinGroup = functions.database.ref('/apps/{app_id}/groups/{group_id}/members/{member_id}').onCreate((data, context) => {
+
+  const member_id = context.params.member_id;
+  const group_id = context.params.group_id;
+  const app_id = context.params.app_id;;
+
+  return chatApi.copyGroupMessagesToUserTimeline(group_id, member_id, app_id);
+
+});
+
+
+exports.duplicateTimelineOnJoinGroupForInvitedMembers = functions.database.ref('/apps/{app_id}/groups/{group_id}/invited_members/{member_id}').onCreate((data, context) => {
+
+  const member_id = context.params.member_id;
+  const group_id = context.params.group_id;
+  const app_id = context.params.app_id;;
+
+  return chatApi.copyGroupMessagesToUserTimeline(group_id, member_id, app_id);
+});
+
+
+
+exports.sendInfoMessageOnJoinGroup = functions.database.ref('/apps/{app_id}/groups/{group_id}/members/{member_id}').onCreate((data, context) => {
+
+  const member_id = context.params.member_id;
+  const group_id = context.params.group_id;
+  const app_id = context.params.app_id;;
+  console.log("member_id: " + member_id + ", group_id : " + group_id + ", app_id: " + app_id);
+
+  const member = data.val();
+  console.log("member", member);
+
+
+  if (member_id == "system") {
+    return 0;
+  }
+
+  var updateconversation = true;
+  var forcenotification = true;
+
+  if (group_id.indexOf("support-group") > -1) {
+    console.log('dont update conversation for group creation message for support-group');
+    updateconversation = false;
+    forcenotification = false;   //dont force notification for MEMBER_JOINED_GROUP for support-group
+  }
+
+  var sender_id = "system";
+  var sender_fullname = "System";
+
+
+  return chatApi.getGroupById(group_id, app_id).then(function (group) {
+    console.log("group", group);
+    if (group) {
+
+      return chatApi.getContactById(member_id, app_id).then(function (contact) {
+        console.log("contact", contact);
+        var fullname = contact.firstname + " " + contact.lastname;
+        console.log("fullname", fullname);
+        return chatApi.sendGroupMessage(sender_id, sender_fullname, group_id, group.name, fullname + " added to group", app_id, { subtype: "info", "updateconversation": updateconversation, forcenotification: forcenotification, messagelabel: { key: "MEMBER_JOINED_GROUP", parameters: { member_id: member_id, fullname: fullname } } });
+      }, function (error) {
+
+        var parameters = { member_id: member_id };
+
+        if (member_id.startsWith("bot_")) {
+
+          parameters["fullname"] = "Bot";
+
+          console.log("parameters", parameters);
+
+          return chatApi.sendGroupMessage(sender_id, sender_fullname, group_id, group.name, "New member added to group", app_id, { subtype: "info", "updateconversation": updateconversation, forcenotification: forcenotification, messagelabel: { key: "MEMBER_JOINED_GROUP", parameters } });
+
+
+        } else {
+
+          if (group.attributes) {
+            var prechatFullname = "";
+            if (group.attributes.userName) {
+              prechatFullname = group.attributes.userName;
+            }
+            if (group.attributes.userEmail) {
+              prechatFullname = prechatFullname + " (" + group.attributes.userEmail + ")";
+            }
+            if (prechatFullname.length > 0) {
+              parameters["fullname"] = prechatFullname;
+            }
+          }
+
+          console.log("parameters", parameters);
+
+          return chatApi.sendGroupMessage(sender_id, sender_fullname, group_id, group.name, "New member added to group", app_id, { subtype: "info", "updateconversation": updateconversation, messagelabel: { key: "MEMBER_JOINED_GROUP", parameters } });
+
+        }
+
+
+      });
+
+    }
+  });
+
+});
+
+
+//DEPRECATED UNUSED. REMOVE IT
+exports.saveMemberInfoOnJoinGroup = functions.database.ref('/apps/{app_id}/groups/{group_id}/members/{member_id}').onCreate((data, context) => {
+
+  const member_id = context.params.member_id;
+  const group_id = context.params.group_id;
+  const app_id = context.params.app_id;;
+  console.log("member_id: " + member_id + ", group_id : " + group_id + ", app_id: " + app_id);
+
+  return chatApi.saveMemberInfo(member_id, group_id, app_id);
+
+});
+//DEPRECATED UNUSED. REMOVE IT
+exports.removeMemberInfoOnLeaveGroup = functions.database.ref('/apps/{app_id}/groups/{group_id}/members/{member_id}').onDelete((data, context) => {
+
+  const member_id = context.params.member_id;
+  const group_id = context.params.group_id;
+  const app_id = context.params.app_id;;
+  console.log("member_id: " + member_id + ", group_id : " + group_id + ", app_id: " + app_id);
+
+  return chatApi.deleteMemberInfo(member_id, group_id, app_id);
+});
+
+
+
+if (functions.config().group && functions.config().group.general && functions.config().group.general.autojoin) {
+  exports.addToGeneralMembersOnContantCreation = functions.database.ref('/apps/{app_id}/contacts/{contact_id}').onCreate((data, context) => {
+
+    const contact_id = context.params.contact_id;
+    const app_id = context.params.app_id;;
+    // DEBUG console.log("contact_id: "+ contact_id + ", app_id: " + app_id);
+
+    var group_id = "general_group";
+
+    return chatApi.getGroupById(group_id, app_id).then(function (group) {
+      // DEBUG console.log("group", group);
+
+      if (group) {
+        var groupMembersAsArray = Object.keys(group.members);
+        if (groupMembersAsArray.indexOf(contact_id) == -1) {
+          console.log("contact_id is joinig general group");
+          return chatApi.joinGroup(contact_id, group_id, app_id);
+        } else {
+          console.log("contact_id " + contact_id + " already present");
+        }
+      } else {
+        console.log("error group is null");
+
+      }
+    }, function (error) {
+      var group_members = {};
+      group_members.system = 1;
+      group_members[contact_id] = 1;
+
+      console.log("general group not exist. Creating general group with members", group_members);
+
+      return chatApi.createGroupWithId(group_id, "General", "system", group_members, app_id);
+    });
+
+  });
+}
+
+const pushNotificationsFunction = require('./util/notification/push-notification');
+exports.pushNotificationsFunction = pushNotificationsFunction;
+
+if (functions.config().email && functions.config().email.enabled) {
+  const emailNotificationsFunction = require('./util/notification/email-notification');
+  exports.emailNotificationsFunction = emailNotificationsFunction;
+}
+
+const thumbnailFunction = require('./util/chat-thumbnail');
+exports.thumbnailFunction = thumbnailFunction;
