@@ -49,3 +49,14 @@ exports.signOutUser = (req, res) => {
     authApi.signOut(req, res)
   });
 };
+
+
+/**
+ * Sign out a user by revoking his refresh token
+ * @returns a result code in case of success or the errors
+ */
+exports.generateToken = (req, res) => {
+  cors(req, res, () => {
+    authApi.generateToken(req, res)
+  });
+};

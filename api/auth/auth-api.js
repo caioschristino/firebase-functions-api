@@ -25,6 +25,33 @@ class AuthApi {
             .set(createUserDocument(data));
     }
 
+    generateToken(req, res) {
+        if (req.method !== 'POST') {
+            res.status(403).send('Forbidden!');
+        }
+
+        if (!req.body.uid) {
+            res.status(405).send('uid is not present!');
+        }
+
+        const uid = req.body.uid;
+        admin.auth().createCustomToken(uid)
+            .then(function (token) {
+                return res.status(201).json({
+                    result: 'auth/success-token',
+                    token,
+                });
+            })
+            .catch(function (error) {
+                switch (error.code) {
+                    case 'auth/insufficient-permission':
+                        return res.status(403).json({ errors: { email: error.code } });
+                    default:
+                        return res.status(500).json({ errors: { general: error.code } });
+                }
+            });
+    }
+
     /**
      * Sign up a user giving in the request body an email, a password, and a confirm password.
      * 1) Validate the format of the email, the password, and the confirm password and check if
